@@ -112,6 +112,37 @@ func Abs(val int) int {
 	return val
 }
 
+/*
+Returns maximum of 2 integers
+*/
+func Max(a int, b int) int {
+	if a < b {
+		return b
+	}
+	return a
+}
+
+/*
+Returns minimum of 2 integers
+*/
+func Min(a int, b int) int {
+	if a > b {
+		return b
+	}
+	return a
+}
+
+/*
+Copy the sign of a number and assign it to a value
+*/
+func CopySignInt(value int, signed_num int) int {
+	if signed_num >= 0 {
+		return value
+	} else {
+		return -value
+	}
+}
+
 /* Checks error and PANIK!!
  */
 func CheckErr(e error) {
