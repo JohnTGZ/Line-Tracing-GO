@@ -282,7 +282,7 @@ func main() {
 	}
 
 	// Encode as PNG.
-	f, err := os.Create("image.png")
+	f, err := os.Create("house.png")
 	line_render.CheckErr(err)
 	png.Encode(f, img)
 
