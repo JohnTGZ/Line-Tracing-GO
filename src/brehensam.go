@@ -2,30 +2,30 @@ package main
 
 import (
 	"bufio" //For reading line by line
-	"flag"  //For command line parsing
+	"flag"
+
+	//For command line parsing
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"line_render/line_render"
+	"log"
 	"os" //for opening filess
 	"strconv"
 	"strings"
+	"time"
 )
 
 /* Process command line arguemnts to read from either
 test input or normal input file
 */
-func procArg() string {
-	testingPtr := flag.Bool("t", false, "Enable testing")
+func processArgFlags() string {
+	file_name_ptr := flag.String("f", "input.txt", "Input file name")
 
 	flag.Parse()
 
-	input_file := "input.txt"
-	if *testingPtr {
-		input_file = "test_input.txt"
-	}
-	return input_file
+	return *file_name_ptr
 }
 
 /* Read the input into an iterable array
@@ -83,113 +83,56 @@ func brehensamFloat(img *image.RGBA, coords []int, color color.RGBA) {
 	x1, y1, x2, y2 := coords[0], coords[1], coords[2], coords[3]
 	dx, dy := x2-x1, y2-y1
 
-	gradient_case := 0
+	grad_sign := 1.0                  //Sign of gradient
+	if bool(dx < 0) != bool(dy < 0) { // (dx is negative) XOR (dy is negative)
+		grad_sign = -1.0
+	}
+
+	//We use x_inc and y_inc to either increment or decrement x or y depending on the sign of the gradient
+	x_inc := line_render.CopySignInt(1, dx)
+	y_inc := line_render.CopySignInt(1, dy)
+
+	var m float64
+	if dx != 0 { //Only calculate gradient if it is not infinite
+		m = (float64(dy)) / (float64(dx)) //gradient
+	}
+	if line_render.Abs(dy) > line_render.Abs(dx) { // if absolute value of gradient > 1, then invert it
+		m = 1 / m
+	}
 
 	if dx == 0 && dy == 0 {
 		fmt.Printf("Start and end coordinates are the same \n")
 		return
 	} else if dx == 0 { // m == INF
-		gradient_case = 5
-	} else if dy == 0 { // m == 0
-		gradient_case = 6
-	} else if dy > 0 { // m > 0
-		if dx > 0 { //1st Quadrant, Top right
-			if line_render.Abs(dy) > line_render.Abs(dx) { //1st Octant ( 1 < m < INF )
-				gradient_case = 1
-			} else { //2nd Octant ( 0 < m <= 1 )
-				gradient_case = 2
-			}
-		} else { //4th Quadrant, Top left
-			if line_render.Abs(dy) > line_render.Abs(dx) { //8th Octant ( -INF < m < -1 )
-				gradient_case = 4
-			} else { //7th Octant ( -1 <= m < 0 )
-				gradient_case = 3
-			}
-		}
-	} else if dy < 0 { // m < 0
-		if dx > 0 { //2nd Quadrant, Btm right
-			if line_render.Abs(dy) > line_render.Abs(dx) { //4th Octant ( -INF < m < -1 )
-				gradient_case = 4
-			} else { //3rd Octant ( -1 <= m < 0 )
-				gradient_case = 3
-			}
-		} else { //3rd Quadrant, Btm Left
-			if line_render.Abs(dy) > line_render.Abs(dx) { //5th Octant ( 1 < m < INF )
-				gradient_case = 1
-			} else { //6th Octant ( 0 < m <= 1 )
-				gradient_case = 2
-			}
-		}
-	}
-
-	var m float64
-	if gradient_case != 5 { //Only calculate gradient if it is not infinite
-		m = (float64(dy)) / (float64(dx)) //gradient
-	}
-
-	// if absolute value of gradient > 1, then invert it
-	if line_render.Abs(dy) > line_render.Abs(dx) {
-		m = 1 / m
-	}
-	x_inc := line_render.CopySignInt(1, dx)
-	y_inc := line_render.CopySignInt(1, dy)
-
-	switch gradient_case {
-	case 1: //Octant 1 and 5: 1 < m < INF
-		fmt.Printf("1st Octant: 1 < m < INF \n")
-		for x, y, err := x1, y1, 0.0; y != y2+y_inc; y += y_inc {
-			img.Set(x, y, color)
-			if (err + m) < 0.5 {
-				err += m
-			} else {
-				err += m - 1
-				x += x_inc
-			}
-		}
-	case 2: //Octant 2 and 6: 0 < m <= 1
-		fmt.Printf("2nd Octant: 0 < m <= 1 \n")
-		for x, y, err := x1, y1, 0.0; x != x2+x_inc; x += x_inc {
-			img.Set(x, y, color)
-			if (err + m) < 0.5 {
-				err += m
-			} else {
-				err += m - 1
-				y += y_inc
-			}
-		}
-	case 3: //Octant 3 and 7: -1 <= m < 0
-		fmt.Printf("3rd Octant: -1 <= m < 0 \n")
-		for x, y, err := x1, y1, 0.0; x != x2+x_inc; x += x_inc {
-			img.Set(x, y, color)
-			if (err + m) > -0.5 {
-				err += m
-			} else {
-				err += m + 1
-				y += y_inc
-			}
-		}
-	case 4: //Octant 4 and 8: -INF < m < -1
-		fmt.Printf("4th Octant: -INF < m < -1 \n")
-		for x, y, err := x1, y1, 0.0; y != y2+y_inc; y += y_inc {
-			img.Set(x, y, color)
-			if (err + m) > -0.5 {
-				err += m
-			} else {
-				err += m + 1
-				x += x_inc
-			}
-		}
-	case 5: // m == INF
-		fmt.Printf("Vertical Line: m == INF \n")
 		for y := y1; y != y2+y_inc; y += y_inc {
 			img.Set(x1, y, color)
 		}
-	case 6: // m == 0
-		fmt.Printf("Horizontal Line: m == 0 \n")
+	} else if dy == 0 { // m == 0
 		for x := x1; x != x2+x_inc; x += x_inc {
 			img.Set(x, y1, color)
 		}
-
+	} else if line_render.Abs(dy) > line_render.Abs(dx) { // 1 < abs(m) < INF
+		// fmt.Printf("1st, 5th, 4th and 8th Octant: 1 < abs(m) < INF \n")
+		for x, y, err := x1, y1, 0.0; y != y2+y_inc; y += y_inc {
+			img.Set(x, y, color)
+			if grad_sign*(err+m) < 0.5 {
+				err += m
+			} else {
+				err += m - grad_sign*1
+				x += x_inc
+			}
+		}
+	} else { // 0 < abs(m) <= 1
+		// fmt.Printf("2nd, 6th, 3rd and 7th Octant: 0 < abs(m) <= 1 \n")
+		for x, y, err := x1, y1, 0.0; x != x2+x_inc; x += x_inc {
+			img.Set(x, y, color)
+			if grad_sign*(err+m) < 0.5 {
+				err += m
+			} else {
+				err += m - grad_sign*1
+				y += y_inc
+			}
+		}
 	}
 
 }
@@ -209,19 +152,16 @@ func brehensamInt(img *image.RGBA, coords []int, color color.RGBA) {
 		fmt.Printf("Start and end coordinates are the same \n")
 		return
 	} else if dx == 0 { // m == INF
-		// fmt.Printf("Vertical Line: m == INF \n")
 		for y := y1; y != y2+y_inc; y += y_inc {
 			img.Set(x1, y, color)
 		}
 	} else if dy == 0 { // m == 0
-		// fmt.Printf("Horizontal Line: m == 0 \n")
 		for x := x1; x != x2+x_inc; x += x_inc {
 			img.Set(x, y1, color)
 		}
-	} else if line_render.Abs(dy) > line_render.Abs(dx) { // 1 < m < INF
-		// fmt.Printf("1st, 5th, 4th and 8th Octant: 1 < m < INF \n")
+	} else if line_render.Abs(dy) > line_render.Abs(dx) { // 1 < abs(m) < INF
+		// fmt.Printf("1st, 5th, 4th and 8th Octant: 1 < abs(m) < INF \n")
 		for x, y, err := x1, y1, 0; y != y2+y_inc; y += y_inc {
-			// fmt.Printf("(%d, %d), err: %d \n", x, y, err)
 			img.Set(x, y, color)
 			if grad_sign*2*(err+dx) < dy {
 				err += y_inc * (dx)
@@ -231,9 +171,8 @@ func brehensamInt(img *image.RGBA, coords []int, color color.RGBA) {
 			}
 		}
 	} else { // 0 < m <= 1
-		// fmt.Printf("2nd, 6th, 3rd and 7th Octant: 0 < m <= 1 \n")
+		// fmt.Printf("2nd, 6th, 3rd and 7th Octant: 0 < abs(m) <= 1 \n")
 		for x, y, err := x1, y1, 0; x != x2+x_inc; x += x_inc {
-			// fmt.Printf("(%d, %d), err: %d \n", x, y, err)
 			img.Set(x, y, color)
 			if grad_sign*2*(err+dy) < dx {
 				err += x_inc * (dy)
@@ -247,43 +186,39 @@ func brehensamInt(img *image.RGBA, coords []int, color color.RGBA) {
 }
 
 func main() {
-
-	//reader for taking in input
-	// consoleReader := bufio.NewReader(os.Stdin)
-
-	input_file := procArg()
+	input_file := processArgFlags()
 
 	coordinate_arr, max_width, max_height := getInput(input_file)
+	// fmt.Printf("Image Width,Height: %d, %d \n", max_width, max_height)
 
-	fmt.Printf("Image Width,Height: %d, %d \n", max_width, max_height)
+	img_topLeft := image.Point{0, 0}
+	img_btmRight := image.Point{max_width, max_height}
 
-	topLeft := image.Point{0, 0}
-	btmRight := image.Point{max_width, max_height}
-
-	img := image.NewRGBA(image.Rectangle{topLeft, btmRight})
+	img_int := image.NewRGBA(image.Rectangle{img_topLeft, img_btmRight})
+	img_float := image.NewRGBA(image.Rectangle{img_topLeft, img_btmRight})
 	cyan := color.RGBA{100, 200, 200, 0xff}
 
-	//iterate through each coord (x1, y1, x2, y2, dx, dy)
-	for _, coord := range coordinate_arr {
-		// brehensamFloat(img, coord, cyan)
-		brehensamInt(img, coord, cyan)
-		// char, _, err := consoleReader.ReadRune()
-		// line_render.CheckErr(err)
-		// fmt.Printf("Current input: %s", char)
-
-		// switch char {
-		// case 'n':
-		// 	fmt.Println("Stepping through program")
-		// 	continue
-		// case 'q':
-		// 	fmt.Println("Exiting line-tracing program")
-		// 	break
-		// }
+	start := time.Now()
+	for _, coord := range coordinate_arr { //iterate through each coord (x1, y1, x2, y2)
+		brehensamFloat(img_float, coord, cyan)
 	}
-
-	// Encode as PNG.
-	f, err := os.Create("house.png")
+	elapsed_float := time.Since(start)
+	// Encode as PNG and save it to a file
+	f_float, err := os.Create("house_float.png")
 	line_render.CheckErr(err)
-	png.Encode(f, img)
+	png.Encode(f_float, img_float)
 
+	start = time.Now()
+	for _, coord := range coordinate_arr {
+		brehensamInt(img_int, coord, cyan)
+	}
+	elapsed_int := time.Since(start)
+
+	// Encode as PNG and save it to a file
+	f_int, err := os.Create("house_int.png")
+	line_render.CheckErr(err)
+	png.Encode(f_int, img_int)
+
+	log.Printf("Brehensam Float took %s", elapsed_float)
+	log.Printf("Brehensam Integer took %s", elapsed_int)
 }
